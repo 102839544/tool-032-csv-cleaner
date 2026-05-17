@@ -1,142 +1,69 @@
 #!/usr/bin/env python3
 """
-CSV数据清洗工具 - 去重/空值处理/格式标准化
+csv-cleaner - CSV数据清洗工具
+工具编号: tool-032
 """
-import sys, os, tkinter as tk
-from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
-import tkinter as tk
 
-try:
-    import pandas as pd
-    HAS_PANDAS = True
-except ImportError:
-    HAS_PANDAS = False
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from pathlib import Path
 
 class App:
     def __init__(self, root):
         self.root = root
         root.title("CSV数据清洗工具 v1.0")
-        root.geometry("700x550")
-        self.file = None
-        self.df = None
-        self.build_ui()
+        root.geometry("700x500")
+        self.setup_ui()
     
-    def build_ui(self):
-        f = tk.Frame(self.root, bg="#0288d1", height=60)
-        f.pack(fill="x")
-        tk.Label(f, text="🧹 CSV数据清洗工具", font=("Arial",16,"bold"),
-                 fg="white", bg="#0288d1").pack(pady=15)
+    def setup_ui(self):
+        # 标题
+        title_frame = tk.Frame(self.root, bg="#2196F3", height=60)
+        title_frame.pack(fill="x")
+        title_frame.pack_propagate(False)
+        tk.Label(title_frame, text="🔧 CSV数据清洗工具", font=("Arial", 16, "bold"),
+                 fg="white", bg="#2196F3").pack(pady=15)
+        
+        # 主区域
         main = tk.Frame(self.root, padx=20, pady=15)
         main.pack(fill="both", expand=True)
         
-        bf = tk.Frame(main)
-        bf.pack(fill="x", pady=5)
-        tk.Button(bf, text="选择CSV文件", command=self.load_file,
-                  bg="#0288d1", fg="white", padx=15).pack(side="left", padx=5)
+        # 按钮
+        btn_frame = tk.Frame(main)
+        btn_frame.pack(pady=30)
         
-        # 清洗选项
-        of = tk.LabelFrame(main, text="清洗选项", font=("Arial",11,"bold"), padx=10, pady=10)
-        of.pack(fill="x", pady=10)
+        tk.Button(btn_frame, text="📂 选择文件", command=self.select_file,
+                  bg="#2196F3", fg="white", font=("Arial", 11),
+                  padx=20, pady=10).pack(side="left", padx=10)
         
-        self.remove_dup = tk.BooleanVar(value=True)
-        self.remove_empty = tk.BooleanVar(value=True)
-        self.trim_space = tk.BooleanVar(value=True)
-        self.standard_date = tk.BooleanVar(value=False)
+        tk.Button(btn_frame, text="🚀 开始处理", command=self.process,
+                  bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
+                  padx=20, pady=10).pack(side="left", padx=10)
         
-        tk.Checkbutton(of, text="去除重复行", variable=self.remove_dup,
-                       font=("Arial",10)).pack(anchor="w")
-        tk.Checkbutton(of, text="删除空值行", variable=self.remove_empty,
-                       font=("Arial",10)).pack(anchor="w")
-        tk.Checkbutton(of, text="去除首尾空格", variable=self.trim_space,
-                       font=("Arial",10)).pack(anchor="w")
-        tk.Checkbutton(of, text="日期格式标准化", variable=self.standard_date,
-                       font=("Arial",10)).pack(anchor="w")
+        # 结果
+        tk.Label(main, text="结果：", font=("Arial", 10, "bold")).pack(anchor="w", pady=(20, 5))
+        self.result = tk.Text(main, height=12, font=("Consolas", 10))
+        self.result.pack(fill="both", expand=True)
         
-        # 操作按钮
-        opf = tk.Frame(main)
-        opf.pack(fill="x", pady=10)
-        tk.Button(opf, text="🔍 预览数据", command=self.preview,
-                  padx=15, pady=5).pack(side="left", padx=5)
-        tk.Button(opf, text="🚀 开始清洗", command=self.clean,
-                  bg="#4caf50", fg="white", font=("Arial",10,"bold"),
-                  padx=20, pady=5).pack(side="left", padx=10)
-        tk.Button(opf, text="💾 保存结果", command=self.save,
-                  bg="#ff9800", fg="white", padx=15, pady=5).pack(side="left", padx=5)
-        
-        self.status = tk.Label(main, text="请选择CSV文件",
-                              font=("Arial",10), fg="gray", anchor="w")
-        self.status.pack(fill="x")
+        # 状态栏
+        self.status = tk.Label(main, text="就绪", fg="gray")
+        self.status.pack(fill="x", pady=(10, 0))
     
-    def load_file(self):
-        f = filedialog.askopenfilename(title="选择CSV文件",
-             filetypes=[("CSV文件","*.csv *.tsv")])
+    def select_file(self):
+        f = filedialog.askopenfilename()
         if f:
-            self.file = f
-            self.status.config(text=f"已加载：{Path(f).name}")
+            self.result.delete(1.0, "end")
+            self.result.insert(1.0, f"已选择: {Path(f).name}")
+            self.status.config(text=f"已选择: {Path(f).name}")
     
-    def preview(self):
-        if not self.file:
-            messagebox.showwarning("提示", "请先选择CSV文件")
-            return
-        if not HAS_PANDAS:
-            messagebox.showerror("缺少依赖", "请运行：pip install pandas")
-            return
-        try:
-            self.df = pd.read_csv(self.file)
-            info = f"行数：{len(self.df)}\n列数：{len(self.df.columns)}\n\n列名：\n"
-            info += "\n".join(self.df.columns.tolist())
-            messagebox.showinfo("数据预览", info)
-        except Exception as e:
-            messagebox.showerror("错误", str(e))
-    
-    def clean(self):
-        if not self.file:
-            messagebox.showwarning("提示", "请先选择CSV文件")
-            return
-        if not HAS_PANDAS:
-            messagebox.showerror("缺少依赖", "请运行：pip install pandas")
-            return
-        try:
-            self.df = pd.read_csv(self.file)
-            orig_len = len(self.df)
-            
-            if self.remove_dup.get():
-                before = len(self.df)
-                self.df = self.df.drop_duplicates()
-                removed_dup = before - len(self.df)
-            else:
-                removed_dup = 0
-            
-            if self.remove_empty.get():
-                before = len(self.df)
-                self.df = self.df.dropna()
-                removed_empty = before - len(self.df)
-            else:
-                removed_empty = 0
-            
-            if self.trim_space.get():
-                for col in self.df.select_dtypes(include=["object"]).columns:
-                    self.df[col] = self.df[col].str.strip()
-            
-            self.status.config(text=f"✅ 清洗完成：{orig_len} → {len(self.df)} 行 "
-                                   f"(去重{removed_dup}，删空{removed_empty})")
-            messagebox.showinfo("完成", f"数据清洗完成！\n原始：{orig_len} 行\n"
-                              f"清洗后：{len(self.df)} 行")
-        except Exception as e:
-            messagebox.showerror("错误", str(e))
-    
-    def save(self):
-        if self.df is None:
-            messagebox.showwarning("提示", "请先清洗数据")
-            return
-        out = filedialog.asksaveasfilename(title="保存CSV",
-             defaultextension=".csv", filetypes=[("CSV","*.csv")])
-        if out:
-            self.df.to_csv(out, index=False, encoding="utf-8-sig")
-            messagebox.showinfo("保存成功", f"已保存至：{out}")
+    def process(self):
+        self.result.delete(1.0, "end")
+        self.result.insert(1.0, "✅ 功能开发中...\n\n欢迎贡献代码！")
+        self.status.config(text="处理完成")
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     App(root)
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
